@@ -57,20 +57,27 @@ func main() {
 // Socket example
 
 func RunWebServer() {
-	// Set up WebSocket route
-	http.HandleFunc("/ws", handleWebSocket)
+	// Start the client manager
+	var manager = &ClientManager{
+		clients:    make(map[*websocket.Conn]bool),
+		register:   make(chan *websocket.Conn),
+		unregister: make(chan *websocket.Conn),
+		broadcast:  make(chan []byte),
+	}
 
-	// Serve static files (HTML) from current directory
+	go manager.run()
+
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		handleWebSocket(manager, w, r)
+	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
 	})
 
-	// Start server
 	fmt.Println("Server starting on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// WebSocket upgrader
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -80,42 +87,75 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// WebSocket connection handler
-func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Upgrade HTTP connection to WebSocket
+// ClientManager to handle multiple connections
+type ClientManager struct {
+	clients    map[*websocket.Conn]bool
+	register   chan *websocket.Conn
+	unregister chan *websocket.Conn
+	broadcast  chan []byte
+	mutex      sync.Mutex
+}
+
+func (m *ClientManager) run() {
+	for {
+		select {
+		case conn := <-m.register:
+			m.mutex.Lock()
+			m.clients[conn] = true
+			m.mutex.Unlock()
+			fmt.Println("New client connected. Total clients:", len(m.clients))
+
+		case conn := <-m.unregister:
+			m.mutex.Lock()
+			if _, ok := m.clients[conn]; ok {
+				delete(m.clients, conn)
+				conn.Close()
+			}
+			m.mutex.Unlock()
+			fmt.Println("Client disconnected. Total clients:", len(m.clients))
+
+		case message := <-m.broadcast:
+			m.mutex.Lock()
+			for conn := range m.clients {
+				err := conn.WriteMessage(websocket.TextMessage, message)
+				if err != nil {
+					log.Println("Write error:", err)
+					delete(m.clients, conn)
+					conn.Close()
+				}
+			}
+			m.mutex.Unlock()
+		}
+	}
+}
+
+func handleWebSocket(manager *ClientManager, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
 		return
 	}
-	defer func(conn *websocket.Conn) {
-		err := conn.Close()
-		if err != nil {
-			log.Println("Close error:", err)
-		}
-	}(conn)
 
-	fmt.Println("Client connected")
+	// Register new connection
+	manager.register <- conn
 
-	// Main loop to handle messages
+	// Clean up when connection closes
+	defer func() {
+		manager.unregister <- conn
+	}()
+
 	for {
-		// Read message from client
 		messageType, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("Read error:", err)
-			break
+			return
 		}
 
-		// Print received message
 		fmt.Printf("Received: %s\n", message)
 
-		// Echo message back to client
-		err = conn.WriteMessage(messageType, message)
-		if err != nil {
-			log.Println("Write error:", err)
-			break
+		// Broadcast message to all clients
+		if messageType == websocket.TextMessage {
+			manager.broadcast <- message
 		}
 	}
-
-	fmt.Println("Client disconnected")
 }

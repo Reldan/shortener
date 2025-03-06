@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebSocket Demo</title>
+    <title>WebSocket Chat</title>
     <style>
         #messages {
-            width: 300px;
-            height: 200px;
+            width: 400px;
+            height: 300px;
             border: 1px solid #ccc;
             overflow-y: auto;
             margin: 10px 0;
@@ -13,17 +13,24 @@
         }
         .message {
             margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
         }
         .sent {
-            color: blue;
+            background-color: #e3f2fd;
+            margin-left: 20%;
         }
         .received {
-            color: green;
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        #status {
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-<h1>WebSocket Echo Demo</h1>
+<h1>WebSocket Chat</h1>
 <div id="messages"></div>
 <input type="text" id="messageInput" placeholder="Type a message...">
 <button onclick="sendMessage()">Send</button>
@@ -34,18 +41,18 @@
     const messages = document.getElementById('messages');
     const messageInput = document.getElementById('messageInput');
     const status = document.getElementById('status');
+    const clientId = Math.random().toString(36).substring(2, 15); // Simple unique ID
 
-    // Connect to WebSocket server
     function connect() {
         ws = new WebSocket('ws://localhost:8080/ws');
 
         ws.onopen = function() {
-            status.textContent = 'Connected to server';
+            status.textContent = 'Connected to server (Client ID: ' + clientId.substring(0, 4) + ')';
             status.style.color = 'green';
         };
 
         ws.onmessage = function(event) {
-            addMessage('Received: ' + event.data, 'received');
+            addMessage(event.data, 'received');
         };
 
         ws.onclose = function() {
@@ -60,7 +67,6 @@
         };
     }
 
-    // Add message to display
     function addMessage(text, type) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -69,24 +75,22 @@
         messages.scrollTop = messages.scrollHeight;
     }
 
-    // Send message to server
     function sendMessage() {
         const message = messageInput.value.trim();
         if (message && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(message);
-            addMessage('Sent: ' + message, 'sent');
+            const formattedMessage = `[${clientId.substring(0, 4)}] ${message}`;
+            ws.send(formattedMessage);
+            addMessage(formattedMessage, 'sent');
             messageInput.value = '';
         }
     }
 
-    // Handle Enter key
     messageInput.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
             sendMessage();
         }
     });
 
-    // Initial connection
     connect();
 </script>
 </body>
