@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fur Wind Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.0/pixi.min.js"></script>
+<script>
+    // Initialize PixiJS application
+    const app = new PIXI.Application({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        backgroundColor: 0x8B4513, // Brown "skin" color
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true
+    });
+    document.body.appendChild(app.view);
+
+    // Fur settings
+    const furCount = 200;
+    const furLength = 30;
+    const furWidth = 2;
+    const furs = [];
+
+    // Create fur strands
+    for (let i = 0; i < furCount; i++) {
+        const fur = new PIXI.Graphics();
+        fur.x = Math.random() * app.screen.width;
+        fur.y = app.screen.height;
+        fur.angle = 0;
+        fur.velocity = 0;
+        fur.baseAngle = 0;
+
+        // Draw fur as a thin rectangle
+        fur.beginFill(0xD2B48C); // Tan fur color
+        fur.drawRect(-furWidth/2, -furLength, furWidth, furLength);
+        fur.endFill();
+
+        app.stage.addChild(fur);
+        furs.push(fur);
+    }
+
+    // Mouse tracking
+    let mouseX = app.screen.width / 2;
+    let mouseY = app.screen.height / 2;
+
+    app.view.addEventListener('mousemove', (event) => {
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+    });
+
+    // Physics parameters
+    const windRadius = 100;
+    const windStrength = 0.02;
+    const springConstant = 0.05;
+    const damping = 0.9;
+
+    // Animation loop
+    app.ticker.add(() => {
+        furs.forEach(fur => {
+            // Calculate distance and angle from mouse
+            const dx = mouseX - fur.x;
+            const dy = mouseY - fur.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Apply wind force if within radius
+            let windForce = 0;
+            if (distance < windRadius) {
+                const forceDirection = Math.atan2(dx, dy);
+                windForce = windStrength * (1 - distance / windRadius) * Math.cos(forceDirection);
+            }
+
+            // Physics: spring-damper system
+            const acceleration = (-springConstant * fur.angle) + windForce;
+            fur.velocity = (fur.velocity + acceleration) * damping;
+            fur.angle += fur.velocity;
+
+            // Limit angle to prevent unnatural bending
+            fur.angle = Math.max(-Math.PI/4, Math.min(Math.PI/4, fur.angle));
+
+            // Update rotation (convert to degrees for PixiJS)
+            fur.rotation = fur.angle;
+        });
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        app.renderer.resize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>

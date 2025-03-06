@@ -1,0 +1,178 @@
+html
+
+Предварительный просмотр
+
+Свернуть
+
+Перенос
+
+Копировать
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Three.js Card Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="info">Pairs Found: 0</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Game variables
+    const cardWidth = 2;
+    const cardHeight = 3;
+    const cardDepth = 0.1;
+    const gridSize = 4; // 4x4 grid = 16 cards (8 pairs)
+    const cards = [];
+    let selectedCards = [];
+    let pairsFound = 0;
+    const totalPairs = (gridSize * gridSize) / 2;
+
+    // Card colors (representing different "faces")
+    const cardColors = [
+        0xff0000, 0x00ff00, 0x0000ff, 0xffff00,
+        0xff00ff, 0x00ffff, 0xff8000, 0x8000ff
+    ];
+
+    // Create game board
+    const boardGeometry = new THREE.PlaneGeometry(gridSize * cardWidth * 1.2, gridSize * cardHeight * 1.2);
+    const boardMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const board = new THREE.Mesh(boardGeometry, boardMaterial);
+    board.rotation.x = -Math.PI / 2;
+    scene.add(board);
+
+    // Create cards
+    function createCards() {
+        const cardValues = [...cardColors, ...cardColors]; // Duplicate for pairs
+        shuffleArray(cardValues);
+
+        for (let i = 0; i < gridSize; i++) {
+            for (let j = 0; j < gridSize; j++) {
+                const geometry = new THREE.BoxGeometry(cardWidth, cardDepth, cardHeight);
+                const backMaterial = new THREE.MeshBasicMaterial({ color: 0x666666 });
+                const frontMaterial = new THREE.MeshBasicMaterial({ color: cardValues[i * gridSize + j] });
+                const materials = [
+                    backMaterial, backMaterial, // left, right
+                    backMaterial, frontMaterial, // top, bottom
+                    backMaterial, backMaterial  // front, back
+                ];
+                const card = new THREE.Mesh(geometry, materials);
+                card.position.set(
+                    (i - gridSize/2 + 0.5) * cardWidth * 1.2,
+                    cardDepth/2,
+                    (j - gridSize/2 + 0.5) * cardHeight * 1.2
+                );
+                card.userData = {
+                    value: cardValues[i * gridSize + j],
+                    flipped: false,
+                    matched: false,
+                    targetRotation: 0
+                };
+                scene.add(card);
+                cards.push(card);
+            }
+        }
+    }
+
+    // Shuffle array function
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    // Camera position
+    camera.position.set(0, gridSize * 2, gridSize);
+    camera.lookAt(0, 0, 0);
+
+    // Raycaster for clicking
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    document.addEventListener('click', (event) => {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(cards);
+
+        if (intersects.length > 0) {
+            const card = intersects[0].object;
+            if (!card.userData.flipped && !card.userData.matched && selectedCards.length < 2) {
+                flipCard(card);
+                selectedCards.push(card);
+                if (selectedCards.length === 2) {
+                    checkMatch();
+                }
+            }
+        }
+    });
+
+    function flipCard(card) {
+        card.userData.flipped = !card.userData.flipped;
+        card.userData.targetRotation = card.userData.flipped ? Math.PI : 0;
+    }
+
+    function checkMatch() {
+        const [card1, card2] = selectedCards;
+        if (card1.userData.value === card2.userData.value) {
+            card1.userData.matched = true;
+            card2.userData.matched = true;
+            pairsFound++;
+            document.getElementById('info').textContent = `Pairs Found: ${pairsFound}`;
+            selectedCards = [];
+            if (pairsFound === totalPairs) {
+                setTimeout(() => alert('You won!'), 1000);
+            }
+        } else {
+            setTimeout(() => {
+                flipCard(card1);
+                flipCard(card2);
+                selectedCards = [];
+            }, 1000);
+        }
+    }
+
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Smoothly rotate cards
+        cards.forEach(card => {
+            if (card.rotation.y !== card.userData.targetRotation) {
+                card.rotation.y += (card.userData.targetRotation - card.rotation.y) * 0.1;
+            }
+        });
+
+        renderer.render(scene, camera);
+    }
+    createCards();
+    animate();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>

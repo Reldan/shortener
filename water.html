@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Water Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+<script>
+    let cols, rows;
+    const scale = 20; // Size of each "cell" in the simulation
+    let current; // Current wave height
+    let previous; // Previous wave height
+    let damping = 0.99; // How much waves diminish over time
+
+    function setup() {
+        createCanvas(windowWidth, windowHeight);
+        cols = floor(width / scale);
+        rows = floor(height / scale);
+
+        // Initialize arrays for wave simulation
+        current = new Array(cols).fill().map(() => new Array(rows).fill(0));
+        previous = new Array(cols).fill().map(() => new Array(rows).fill(0));
+    }
+
+    function mouseDragged() {
+        // Create ripple at mouse position when dragging
+        let x = floor(mouseX / scale);
+        let y = floor(mouseY / scale);
+        if (x > 0 && x < cols - 1 && y > 0 && y < rows - 1) {
+            previous[x][y] = 500; // Splash strength
+        }
+    }
+
+    function mousePressed() {
+        // Create ripple at click position
+        let x = floor(mouseX / scale);
+        let y = floor(mouseY / scale);
+        if (x > 0 && x < cols - 1 && y > 0 && y < rows - 1) {
+            previous[x][y] = 500;
+        }
+    }
+
+    function draw() {
+        background(0, 0, 50); // Dark blue background
+
+        // Update water simulation
+        for (let i = 1; i < cols - 1; i++) {
+            for (let j = 1; j < rows - 1; j++) {
+                current[i][j] = (
+                    previous[i-1][j] +
+                    previous[i+1][j] +
+                    previous[i][j-1] +
+                    previous[i][j+1] +
+                    previous[i-1][j-1] +
+                    previous[i+1][j-1] +
+                    previous[i-1][j+1] +
+                    previous[i+1][j+1]
+                ) / 4 - current[i][j];
+                current[i][j] = current[i][j] * damping;
+            }
+        }
+
+        // Swap buffers
+        let temp = previous;
+        previous = current;
+        current = temp;
+
+        // Render water
+        loadPixels();
+        for (let i = 0; i < cols; i++) {
+            for (let j = 0; j < rows; j++) {
+                let index = (i * scale + j * scale * width) * 4;
+                let value = current[i][j];
+
+                // Color based on wave height
+                let blue = constrain(50 + value, 0, 255);
+                let alpha = constrain(abs(value) * 2, 0, 255);
+
+                for (let x = 0; x < scale; x++) {
+                    for (let y = 0; y < scale; y++) {
+                        let pixelIndex = (i * scale + x + (j * scale + y) * width) * 4;
+                        pixels[pixelIndex] = 0;         // R
+                        pixels[pixelIndex + 1] = 100;   // G
+                        pixels[pixelIndex + 2] = blue;  // B
+                        pixels[pixelIndex + 3] = alpha; // A
+                    }
+                }
+            }
+        }
+        updatePixels();
+    }
+
+    function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        cols = floor(width / scale);
+        rows = floor(height / scale);
+        current = new Array(cols).fill().map(() => new Array(rows).fill(0));
+        previous = new Array(cols).fill().map(() => new Array(rows).fill(0));
+    }
+</script>
+</body>
+</html>

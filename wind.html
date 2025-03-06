@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grass Wind Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Ground
+    const groundGeometry = new THREE.PlaneGeometry(20, 20);
+    const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x228B22 }); // Forest green
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    // Grass blades
+    const grassCount = 200;
+    const grassBlades = [];
+    const bladeGeometry = new THREE.PlaneGeometry(0.1, 1, 1, 4);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00FF00,
+        side: THREE.DoubleSide
+    });
+
+    for (let i = 0; i < grassCount; i++) {
+        const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+        blade.position.set(
+            Math.random() * 20 - 10, // x: -10 to 10
+            0.5,                    // y: half height
+            Math.random() * 20 - 10  // z: -10 to 10
+        );
+        blade.rotation.z = Math.random() * Math.PI; // Random initial rotation
+        blade.userData = {
+            baseRotation: 0,
+            windForce: 0,
+            velocity: 0
+        };
+        scene.add(blade);
+        grassBlades.push(blade);
+    }
+
+    // Camera position
+    camera.position.set(0, 5, 10);
+    camera.lookAt(0, 0, 0);
+
+    // Mouse tracking
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let mouseWorldPos = new THREE.Vector3();
+
+    document.addEventListener('mousemove', (event) => {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(ground);
+        if (intersects.length > 0) {
+            mouseWorldPos.copy(intersects[0].point);
+        }
+    });
+
+    // Physics parameters
+    const windRadius = 2;
+    const windStrength = 0.5;
+    const springConstant = 0.1;
+    const damping = 0.9;
+
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate);
+
+        grassBlades.forEach(blade => {
+            // Calculate distance from mouse
+            const dx = blade.position.x - mouseWorldPos.x;
+            const dz = blade.position.z - mouseWorldPos.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            // Apply wind force if within radius
+            if (distance < windRadius) {
+                const forceDirection = Math.atan2(dx, dz);
+                blade.userData.windForce = windStrength * (1 - distance / windRadius) * Math.cos(forceDirection);
+            } else {
+                blade.userData.windForce = 0;
+            }
+
+            // Simple physics: spring-damper system
+            const acceleration = (-springConstant * blade.rotation.z) + blade.userData.windForce;
+            blade.userData.velocity = (blade.userData.velocity + acceleration) * damping;
+            blade.rotation.z = blade.rotation.z + blade.userData.velocity;
+        });
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>

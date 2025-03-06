@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Three.js Snake Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="score">Score: 0</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Game board
+    const boardSize = 20;
+    const cubeSize = 1;
+    const snake = [];
+    let direction = { x: 1, y: 0 };
+    let food = null;
+    let score = 0;
+    let speed = 0.1;
+    let lastMoveTime = 0;
+
+    // Create game board
+    const boardGeometry = new THREE.PlaneGeometry(boardSize, boardSize);
+    const boardMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const board = new THREE.Mesh(boardGeometry, boardMaterial);
+    board.rotation.x = -Math.PI / 2;
+    scene.add(board);
+
+    // Create snake initial segment
+    const snakeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+    const snakeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    const snakeHead = new THREE.Mesh(snakeGeometry, snakeMaterial);
+    snakeHead.position.set(0, cubeSize/2, 0);
+    scene.add(snakeHead);
+    snake.push(snakeHead);
+
+    // Create food
+    function spawnFood() {
+        if (food) scene.remove(food);
+        const foodGeometry = new THREE.SphereGeometry(cubeSize/2, 32, 32);
+        const foodMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        food = new THREE.Mesh(foodGeometry, foodMaterial);
+        food.position.set(
+            Math.floor(Math.random() * (boardSize - 1)) - (boardSize/2),
+            cubeSize/2,
+            Math.floor(Math.random() * (boardSize - 1)) - (boardSize/2)
+        );
+        scene.add(food);
+    }
+    spawnFood();
+
+    // Camera position
+    camera.position.set(0, boardSize, boardSize/2);
+    camera.lookAt(0, 0, 0);
+
+    // Controls
+    document.addEventListener('keydown', (event) => {
+        switch(event.key) {
+            case 'ArrowUp': if (direction.y !== 1) direction = { x: 0, y: -1 }; break;
+            case 'ArrowDown': if (direction.y !== -1) direction = { x: 0, y: 1 }; break;
+            case 'ArrowLeft': if (direction.x !== 1) direction = { x: -1, y: 0 }; break;
+            case 'ArrowRight': if (direction.x !== -1) direction = { x: 1, y: 0 }; break;
+        }
+    });
+
+    // Game logic
+    function moveSnake() {
+        // Create new head position
+        const head = snake[0];
+        const newHeadPos = {
+            x: head.position.x + direction.x,
+            z: head.position.z + direction.y
+        };
+
+        // Check boundaries
+        if (Math.abs(newHeadPos.x) > boardSize/2 || Math.abs(newHeadPos.z) > boardSize/2) {
+            gameOver();
+            return;
+        }
+
+        // Check self collision
+        for (let segment of snake) {
+            if (segment.position.x === newHeadPos.x && segment.position.z === newHeadPos.z) {
+                gameOver();
+                return;
+            }
+        }
+
+        // Create new head
+        const newHead = new THREE.Mesh(snakeGeometry, snakeMaterial);
+        newHead.position.set(newHeadPos.x, cubeSize/2, newHeadPos.z);
+        scene.add(newHead);
+        snake.unshift(newHead);
+
+        // Check food collision
+        if (Math.abs(newHeadPos.x - food.position.x) < cubeSize &&
+            Math.abs(newHeadPos.z - food.position.z) < cubeSize) {
+            score += 10;
+            document.getElementById('score').textContent = `Score: ${score}`;
+            spawnFood();
+            speed = Math.max(0.05, speed - 0.005); // Increase speed slightly
+        } else {
+            // Remove tail if no food eaten
+            const tail = snake.pop();
+            scene.remove(tail);
+        }
+    }
+
+    function gameOver() {
+        alert(`Game Over! Score: ${score}`);
+        location.reload(); // Restart game
+    }
+
+    // Animation
+    function animate(time) {
+        requestAnimationFrame(animate);
+
+        // Move snake based on time interval
+        if (time - lastMoveTime > speed * 1000) {
+            moveSnake();
+            lastMoveTime = time;
+        }
+
+        renderer.render(scene, camera);
+    }
+    animate(0);
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
