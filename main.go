@@ -28,7 +28,11 @@ func startConsumer(ch chan string, wg *sync.WaitGroup, short shortener.Shortener
 }
 
 func main() {
-	table := &storage.Storage{}
+	table, err := storage.NewRedisStorage("localhost:6379", "", 0)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	short := shortener.Shortener{Table: table}
 	wg := &sync.WaitGroup{}
 	ch := make(chan string)
